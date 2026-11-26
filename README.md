@@ -208,28 +208,11 @@ npm start
 
 | 篇目 | 标题 | 主题 |
 | :--- | :--- | :--- |
-| D1 | [从零搭建 AI 预审平台地基：11 个鉴权与 ORM 的连环坑，我一个个踩给你看](docs/blog/D1-blog.md) | 供应链安全、`viewonly` 静默失败、循环外键、静默续期单飞 |
-| D2 | [5 个并发打进来，3 个返回 200，库里只剩最后一条](docs/blog/D2-blog.md) | 乐观锁 ABA 窗口、物化计数丢更新、异步 ORM 的 N+1、403 读写分流 |
+| D1 | [从零搭建 AI 预审平台地基：11 个鉴权与 ORM 的连环坑，我一个个踩给你看](https://blog.csdn.net/Confusd_pai/article/details/171313774?spm=1011.2415.3001.5331) | 供应链安全、`viewonly` 静默失败、循环外键、静默续期单飞 |
+| D2 | [5 个并发打进来，3 个返回 200，库里只剩最后一条](https://blog.csdn.net/Confusd_pai/article/details/171372240?spm=1011.2415.3001.5331) | 乐观锁 ABA 窗口、物化计数丢更新、异步 ORM 的 N+1、403 读写分流 |
 
 每篇都是"现象 → 排查与解决 → 原理与沉淀"的结构，代码可以直接抄。
 
-### 🧭 阶段复盘文档
-
-[`docs/复盘文档/`](docs/复盘文档/) 下按后端 / 前端分目录，D1~D7 共 **14 篇**，**69 个踩坑小节**，每个都记了当时的错误实现、最终方案和"已知边界"。几个代表性的：
-
-- `backend/D2` — 乐观锁用条件 UPDATE 才防得住；列表接口 12 条数据和 1 条数据都是 8 个 SQL
-- `backend/D4` — 10 节点 DAG 的确定性 Mock、SSE 68 帧/轮、杀掉进程再唤醒
-- `backend/D6` — `ezdxf` 跑在事件循环里，SSE 心跳停了 2~3 秒
-- `frontend/D6` — PDF 坐标往返误差 0.0000px 的 16 组回归怎么来的
-- `frontend/D7` — 一次性密码、矩阵只读、演示打磨
-
-### 🗂️ 其他文档
-
-| 文档 | 内容 |
-| :--- | :--- |
-| [`docs/prd/prd-01` ~ `prd-07`](docs/prd/) | 认证与工作台、预审中心、批注协同、通知中心、系统管理、AI 引擎架构、API 契约 |
-| [`docs/demo-script.md`](docs/demo-script.md) | 12~15 分钟演示脚本（含常见提问的回答要点） |
-| [`PRD_Master_Arch-Harness.md`](PRD_Master_Arch-Harness.md) | 总体 PRD 与需求基线 |
 
 ### ✅ 验证方式
 
@@ -268,8 +251,6 @@ npm start
 │   │   └── shared/               # 通用组件与管线
 │   └── proxy.conf.json           # /api → 127.0.0.1:8000
 │
-├── docs/                         # PRD（7 份）/ 复盘（14 篇）/ 博客（2 篇）/ 演示脚本
-├── PRD_Master_Arch-Harness.md    # 总体 PRD
 └── README.md
 ```
 
