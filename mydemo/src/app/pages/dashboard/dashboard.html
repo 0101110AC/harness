@@ -1,0 +1,249 @@
+<div class="space-y-6">
+  <!-- 欢迎条 -->
+  <header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div class="min-w-0">
+      <p class="text-xs font-medium text-slate-400">{{ todayText }}</p>
+      <h1 class="mt-2 truncate text-[22px] font-semibold tracking-tight text-slate-900">
+        {{ greeting }}，{{ userName() }}
+      </h1>
+      <p class="mt-1.5 text-sm text-slate-500">
+        今天要处理什么、图纸到哪一步、AI 拦下了什么，都在这里。
+      </p>
+    </div>
+    <div class="flex shrink-0 gap-2">
+      <button type="button" class="btn-secondary" (click)="goUpload()">
+        <app-icon name="upload" [size]="16" />
+        上传图纸
+      </button>
+      @if (canCreateProject()) {
+        <a routerLink="/projects" class="btn-primary">
+          <app-icon name="plus" [size]="16" />
+          新建项目
+        </a>
+      }
+    </div>
+  </header>
+
+  <!-- 统计卡 ×3：loading 用骨架，失败整卡显示 — 并提供重试；就绪后整卡是链接 -->
+  <div class="grid gap-4 md:grid-cols-3">
+    @for (card of cards(); track card.key) {
+      @if (card.loading || card.error) {
+        <div class="card flex h-[120px] flex-col justify-between p-5">
+          <ng-container
+            [ngTemplateOutlet]="cardBody"
+            [ngTemplateOutletContext]="{ $implicit: card }"
+          />
+        </div>
+      } @else {
+        <a
+          [routerLink]="card.link"
+          [queryParams]="card.queryParams"
+          class="card group flex h-[120px] flex-col justify-between p-5 transition-shadow hover:shadow-float"
+        >
+          <ng-container
+            [ngTemplateOutlet]="cardBody"
+            [ngTemplateOutletContext]="{ $implicit: card }"
+          />
+        </a>
+      }
+    }
+  </div>
+
+  <ng-template #cardBody let-card>
+    <div class="flex items-center justify-between gap-2">
+      <span class="text-sm text-slate-500">{{ card.label }}</span>
+      <div class="flex items-center gap-1.5">
+        <app-icon [name]="card.icon" [size]="16" class="text-slate-300" />
+        @if (!card.loading && !card.error) {
+          <app-icon
+            name="chevronRight"
+            [size]="14"
+            class="text-slate-300 opacity-0 transition-opacity group-hover:opacity-100"
+          />
+        }
+      </div>
+    </div>
+
+    @if (card.loading) {
+      <div>
+        <div class="h-7 w-16 animate-pulse rounded bg-slate-100"></div>
+        <div class="mt-3 h-3 w-28 animate-pulse rounded bg-slate-100"></div>
+      </div>
+    } @else if (card.error) {
+      <div class="flex items-end justify-between gap-2">
+        <p class="text-[28px] font-semibold leading-none tracking-tight text-slate-300">—</p>
+        <button
+          type="button"
+          class="mb-0.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary-soft"
+          (click)="loadOverview()"
+        >
+          <app-icon name="refresh" [size]="13" />
+          重试
+        </button>
+      </div>
+    } @else {
+      <div>
+        <div class="flex items-end gap-2">
+          <p class="text-[28px] font-semibold leading-none tracking-tight text-slate-900">
+            {{ card.value }}
+          </p>
+          @if (card.trendText) {
+            <span
+              class="mb-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium"
+              [class.bg-success-soft]="card.trendTone === 'up'"
+              [class.text-success]="card.trendTone === 'up'"
+              [class.bg-slate-100]="card.trendTone === 'down'"
+              [class.text-slate-500]="card.trendTone === 'down'"
+            >
+              {{ card.trendText }}
+            </span>
+          }
+        </div>
+        <p class="mt-2 truncate text-xs text-slate-400">{{ card.hint }}</p>
+      </div>
+    }
+  </ng-template>
+
+  <!-- 待办中心（占屏 60%）+ 最近项目（右侧 340px），<1280px 上下堆叠 -->
+  <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <section class="card flex flex-col p-6">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-900">待办中心</h2>
+          <p class="mt-1 text-xs text-slate-400">指派给我的未关闭批注，按严重度排序</p>
+        </div>
+        @if (!todoLoading() && !todoError()) {
+          <a
+            routerLink="/annotations"
+            [queryParams]="{ assignee: 'me' }"
+            class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 transition-colors hover:bg-primary-soft hover:text-primary"
+          >
+            全部 {{ todoCount() }} 条
+          </a>
+        }
+      </div>
+
+      @if (todoLoading()) {
+        <div class="mt-4 space-y-3">
+          @for (placeholder of [0, 1, 2]; track placeholder) {
+            <div class="flex items-center gap-3">
+              <div class="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-slate-100"></div>
+              <div class="h-3.5 flex-1 animate-pulse rounded bg-slate-100"></div>
+              <div class="h-3.5 w-16 shrink-0 animate-pulse rounded bg-slate-100"></div>
+            </div>
+          }
+        </div>
+      } @else if (todoError()) {
+        <div class="flex flex-1 flex-col items-center justify-center gap-2 py-14 text-center">
+          <app-icon name="alert" [size]="20" class="text-slate-300" />
+          <p class="text-xs text-slate-500">待办加载失败</p>
+          <button type="button" class="btn-secondary h-8 px-3 text-xs" (click)="loadTodos()">
+            <app-icon name="refresh" [size]="13" />
+            重试
+          </button>
+        </div>
+      } @else if (todos().length === 0) {
+        <div class="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+          <span class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 text-slate-300">
+            <app-icon name="inbox" [size]="20" />
+          </span>
+          <p class="text-sm text-slate-500">暂无待办，去上传一张图纸吧</p>
+          <button type="button" class="btn-secondary h-9 px-3 text-xs" (click)="goUpload()">
+            <app-icon name="upload" [size]="14" />
+            上传图纸
+          </button>
+        </div>
+      } @else {
+        <div class="mt-3 flex-1">
+          @for (todo of todos(); track todo.id) {
+            <button
+              type="button"
+              class="flex w-full items-center gap-3 border-b border-slate-50 py-3 text-left transition-colors last:border-0 hover:bg-slate-50/60"
+              (click)="openTodo(todo)"
+            >
+              <span
+                class="h-1.5 w-1.5 shrink-0 rounded-full"
+                [class]="severityDot(todo.severity)"
+                [attr.title]="severityLabel(todo.severity)"
+              ></span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-[13px] font-medium text-slate-800">
+                  {{ todo.title }}
+                </span>
+                <span class="mt-0.5 block truncate text-[11px] text-slate-400">
+                  {{ todo.project_name ?? '未知项目' }} · {{ todo.drawing_name ?? '未知图纸' }} · 第
+                  {{ todo.location.page_no }} 页
+                </span>
+              </span>
+              <span
+                class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                [class]="statusChip(todo.status)"
+              >
+                {{ statusLabel(todo.status) }}
+              </span>
+              <span class="w-16 shrink-0 text-right text-[11px] text-slate-400">
+                {{ timeAgo(todo.updated_at) }}
+              </span>
+            </button>
+          }
+        </div>
+      }
+    </section>
+
+    <aside class="space-y-3">
+      <div class="flex items-center justify-between px-1">
+        <h2 class="text-sm font-semibold text-slate-900">最近项目</h2>
+        @if (recentTotal() > 3) {
+          <a routerLink="/projects" class="text-xs text-slate-400 transition-colors hover:text-primary">
+            查看全部
+          </a>
+        }
+      </div>
+
+      @if (recentLoading()) {
+        @for (placeholder of [0, 1, 2]; track placeholder) {
+          <div class="card space-y-2.5 p-4">
+            <div class="h-3.5 w-28 animate-pulse rounded bg-slate-100"></div>
+            <div class="h-3 w-36 animate-pulse rounded bg-slate-100"></div>
+            <div class="h-3 w-16 animate-pulse rounded bg-slate-100"></div>
+          </div>
+        }
+      } @else if (recentError()) {
+        <div class="card flex flex-col items-center gap-2 px-4 py-10 text-center">
+          <app-icon name="alert" [size]="18" class="text-slate-300" />
+          <p class="text-xs text-slate-400">最近项目加载失败</p>
+          <button
+            type="button"
+            class="text-xs font-medium text-primary hover:text-primary-hover"
+            (click)="loadRecentProjects()"
+          >
+            重试
+          </button>
+        </div>
+      } @else if (recentProjects().length === 0) {
+        <div class="card flex flex-col items-center gap-2 px-4 py-10 text-center">
+          <app-icon name="folderPlus" [size]="18" class="text-slate-300" />
+          <p class="text-xs text-slate-400">还没有项目</p>
+          <a routerLink="/projects" class="text-xs font-medium text-primary hover:text-primary-hover">
+            去创建
+          </a>
+        </div>
+      } @else {
+        @for (project of recentProjects(); track project.id) {
+          <a
+            [routerLink]="['/projects', project.id]"
+            class="card block p-4 transition-shadow hover:shadow-float"
+          >
+            <p class="truncate text-sm font-semibold text-slate-900">{{ project.name }}</p>
+            <p class="mt-1.5 text-xs text-slate-400">
+              图纸 {{ project.drawing_count }} · 未关闭批注 {{ project.open_annotation_count }}
+            </p>
+            <p class="mt-3 text-[11px] text-slate-400" [attr.title]="absoluteTime(project.updated_at)">
+              {{ timeAgo(project.updated_at) }}
+            </p>
+          </a>
+        }
+      }
+    </aside>
+  </div>
+</div>

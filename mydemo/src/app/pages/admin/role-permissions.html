@@ -1,0 +1,169 @@
+<div class="space-y-5">
+  <header>
+    <p class="text-[11px] font-medium uppercase tracking-wider text-slate-400">系统管理</p>
+    <h1 class="mt-1.5 page-title">角色权限</h1>
+    <p class="mt-1.5 text-sm text-slate-500">
+      全局角色决定能看到哪些菜单、能调哪些接口；矩阵只读，改动请走版本升级。
+    </p>
+  </header>
+
+  <!-- 只读提示：V1.0 只有查看，没有"点了报错"的假入口 -->
+  <div
+    class="flex items-start gap-2.5 rounded-card border border-warning/20 bg-warning-soft px-4 py-3 text-sm text-warning"
+    role="status"
+  >
+    <app-icon name="alert" [size]="16" class="mt-0.5 shrink-0" />
+    <p class="leading-5">V1.0 仅支持查看，角色权限编辑将在 V2.0 开放。</p>
+  </div>
+
+  @if (loading()) {
+    <div class="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+      <div class="card space-y-3 p-4">
+        @for (placeholder of [0, 1, 2, 3]; track placeholder) {
+          <div class="h-11 animate-pulse rounded-lg bg-slate-100"></div>
+        }
+      </div>
+      <div class="card space-y-3 p-5">
+        @for (placeholder of [0, 1, 2, 3, 4, 5]; track placeholder) {
+          <div class="h-4 animate-pulse rounded bg-slate-100"></div>
+        }
+      </div>
+    </div>
+  } @else if (loadError()) {
+    <section class="card flex flex-col items-center gap-3 px-6 py-16 text-center">
+      <span class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 text-slate-300">
+        <app-icon name="alert" [size]="20" />
+      </span>
+      <p class="text-sm font-medium text-slate-700">角色与权限加载失败</p>
+      <p class="max-w-sm text-sm text-slate-400">权限矩阵依赖角色与权限码两个接口。</p>
+      <button type="button" class="btn-secondary mt-1" (click)="load()">
+        <app-icon name="refresh" [size]="15" />
+        重试
+      </button>
+    </section>
+  } @else {
+    <div class="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+      <!-- 左：角色列表 -->
+      <aside class="card h-fit p-2" aria-label="角色列表">
+        @for (role of orderedRoles(); track role.code) {
+          <button
+            type="button"
+            class="w-full rounded-lg px-3 py-2.5 text-left transition-colors"
+            [class]="
+              selectedRole() === role.code
+                ? 'bg-primary-soft text-primary'
+                : 'text-slate-600 hover:bg-slate-50'
+            "
+            [attr.aria-pressed]="selectedRole() === role.code"
+            (click)="selectRole(role.code)"
+          >
+            <span class="flex items-center justify-between gap-2">
+              <span class="text-sm font-medium">{{ role.name }}</span>
+              <span
+                class="rounded-full px-1.5 py-0.5 text-[10px]"
+                [class]="
+                  selectedRole() === role.code
+                    ? 'bg-white/70 text-primary'
+                    : 'bg-slate-100 text-slate-500'
+                "
+                >{{ role.user_count }} 人</span
+              >
+            </span>
+            <span class="mt-1 block truncate text-[11px] text-slate-400">
+              {{ role.description || '—' }}
+            </span>
+            <span class="mt-1.5 block text-[11px] text-slate-400">
+              权限 {{ rolePermissionCount(role) }}
+            </span>
+          </button>
+        }
+      </aside>
+
+      <!-- 右：只读矩阵 -->
+      <section class="card overflow-hidden">
+        <header class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-900">
+              权限矩阵 · {{ selected()?.name ?? '—' }}
+            </h2>
+            <p class="mt-0.5 text-[11px] text-slate-400">
+              行 = 权限码（按模块分组），列 = 全局角色；✓ 表示该角色拥有该权限
+            </p>
+          </div>
+          <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
+            {{ totalPermissions() }} 个权限码
+          </span>
+        </header>
+
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[720px] text-sm">
+            <thead class="border-b border-slate-100 bg-slate-50/60 text-xs text-slate-400">
+              <tr>
+                <th class="px-5 py-2.5 text-left font-medium">权限</th>
+                @for (role of orderedRoles(); track role.code) {
+                  <th
+                    class="w-[88px] px-2 py-2.5 text-center font-medium"
+                    [class.text-primary]="selectedRole() === role.code"
+                  >
+                    {{ role.name }}
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (group of groups(); track group.module) {
+                <tr class="border-b border-slate-100 bg-slate-50/40">
+                  <td colspan="5" class="px-3 py-1.5">
+                    <button
+                      type="button"
+                      class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 transition-colors hover:text-slate-800"
+                      [attr.aria-expanded]="isExpanded(group.module)"
+                      (click)="toggleGroup(group.module)"
+                    >
+                      <app-icon
+                        name="chevronDown"
+                        [size]="13"
+                        class="transition-transform duration-200"
+                        [class.-rotate-90]="!isExpanded(group.module)"
+                      />
+                      {{ group.label }}（{{ group.items.length }}）
+                    </button>
+                  </td>
+                </tr>
+                @if (isExpanded(group.module)) {
+                  @for (permission of group.items; track permission.code) {
+                    <tr class="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                      <td class="px-5 py-2.5">
+                        <p class="text-[13px] text-slate-700">{{ permission.name }}</p>
+                        <code class="text-[10px] text-slate-400">{{ permission.code }}</code>
+                      </td>
+                      @for (role of orderedRoles(); track role.code) {
+                        <td class="px-2 py-2.5 text-center">
+                          @if (has(role, permission.code)) {
+                            <span
+                              class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-success-soft text-success"
+                              [attr.title]="role.name + ' 拥有 ' + permission.code"
+                            >
+                              <app-icon name="check" [size]="12" />
+                            </span>
+                          } @else {
+                            <span class="text-slate-300" [attr.title]="role.name + ' 无此权限'">—</span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  }
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <footer class="flex items-center gap-1.5 border-t border-slate-100 px-5 py-3 text-[11px] text-slate-400">
+          <app-icon name="lock" [size]="13" />
+          单元格不可点击：权限变更需要走代码评审与数据迁移，不在界面上直接放开
+        </footer>
+      </section>
+    </div>
+  }
+</div>

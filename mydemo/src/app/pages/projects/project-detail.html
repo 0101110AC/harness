@@ -1,0 +1,277 @@
+<div class="space-y-5">
+  <!-- 面包屑 -->
+  <nav class="flex min-w-0 items-center gap-2 text-xs text-slate-400" aria-label="面包屑">
+    <a routerLink="/projects" class="shrink-0 transition-colors hover:text-slate-700">项目管理</a>
+    <app-icon name="chevronRight" [size]="12" class="text-slate-300" />
+    <span class="truncate">{{ project()?.name ?? '项目详情' }}</span>
+  </nav>
+
+  <!-- 项目头部 -->
+  @if (projectLoading()) {
+    <div class="card space-y-3 p-6">
+      <div class="h-6 w-48 animate-pulse rounded bg-slate-100"></div>
+      <div class="h-3.5 w-72 animate-pulse rounded bg-slate-100"></div>
+      <div class="h-3.5 w-56 animate-pulse rounded bg-slate-100"></div>
+    </div>
+  } @else if (projectError()) {
+    <div class="card flex flex-col items-center gap-3 px-6 py-12 text-center">
+      <app-icon name="alert" [size]="20" class="text-slate-300" />
+      <p class="text-sm font-medium text-slate-700">项目信息加载失败</p>
+      <button type="button" class="btn-secondary" (click)="reload()">重试</button>
+    </div>
+  } @else if (project(); as detail) {
+    <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0">
+        <h1 class="truncate text-[22px] font-semibold tracking-tight text-slate-900">
+          {{ detail.name }}
+        </h1>
+        <p class="mt-1.5 text-sm text-slate-500">
+          {{ detail.building_type || '未设置业态' }} · {{ stageLabel(detail.design_stage) }}
+          @if (detail.code) {
+            <span class="text-slate-300"> · </span>{{ detail.code }}
+          }
+        </p>
+        <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-500">
+          <span>图纸 <span class="font-medium text-slate-900">{{ detail.drawing_count }}</span></span>
+          <span>
+            未关闭批注 <span class="font-medium text-slate-900">{{ detail.open_annotation_count }}</span>
+          </span>
+          <span>成员 <span class="font-medium text-slate-900">{{ memberCount() }}</span></span>
+        </div>
+      </div>
+      <button type="button" class="btn-primary shrink-0" (click)="uploadOpen.set(true)">
+        <app-icon name="upload" [size]="16" />
+        上传图纸
+      </button>
+    </header>
+  }
+
+  <!-- Tabs -->
+  <div class="flex items-center gap-1 border-b border-slate-200">
+    <button
+      type="button"
+      class="relative px-3 py-2.5 text-sm font-medium transition-colors"
+      [class.text-slate-900]="activeTab() === 'drawings'"
+      [class.text-slate-500]="activeTab() !== 'drawings'"
+      (click)="activeTab.set('drawings')"
+    >
+      图纸列表
+      <span class="ml-1 text-xs text-slate-400">{{ drawingsTotal() }}</span>
+      @if (activeTab() === 'drawings') {
+        <span class="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary"></span>
+      }
+    </button>
+    <button
+      type="button"
+      class="relative px-3 py-2.5 text-sm font-medium transition-colors"
+      [class.text-slate-900]="activeTab() === 'members'"
+      [class.text-slate-500]="activeTab() !== 'members'"
+      (click)="activeTab.set('members')"
+    >
+      成员管理
+      <span class="ml-1 text-xs text-slate-400">{{ memberCount() }}</span>
+      @if (activeTab() === 'members') {
+        <span class="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary"></span>
+      }
+    </button>
+  </div>
+
+  @if (activeTab() === 'drawings') {
+    @if (drawingsLoading()) {
+      <div class="card overflow-hidden">
+        @for (placeholder of [0, 1, 2, 3]; track placeholder) {
+          <div class="flex items-center gap-4 border-b border-slate-100 px-5 py-4 last:border-0">
+            <div class="h-3.5 w-40 animate-pulse rounded bg-slate-100"></div>
+            <div class="h-3.5 w-12 animate-pulse rounded bg-slate-100"></div>
+            <div class="h-3.5 w-16 animate-pulse rounded bg-slate-100"></div>
+            <div class="ml-auto h-3.5 w-24 animate-pulse rounded bg-slate-100"></div>
+          </div>
+        }
+      </div>
+    } @else if (drawingsError()) {
+      <div class="card flex flex-col items-center gap-3 px-6 py-16 text-center">
+        <app-icon name="alert" [size]="20" class="text-slate-300" />
+        <p class="text-sm font-medium text-slate-700">图纸列表加载失败</p>
+        <button type="button" class="btn-secondary" (click)="loadDrawings()">
+          <app-icon name="refresh" [size]="15" />
+          重试
+        </button>
+      </div>
+    } @else if (drawings().length === 0) {
+      <section class="card flex flex-col items-center gap-4 px-6 py-20 text-center">
+        <div class="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-50">
+          <app-icon name="fileUp" [size]="30" class="text-slate-300" />
+          <span class="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-primary/15"></span>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-slate-700">还没有图纸</p>
+          <p class="mt-1 text-sm text-slate-400">上传 PDF / DXF 后即可发起 AI 预审。</p>
+        </div>
+        <button type="button" class="btn-primary" (click)="uploadOpen.set(true)">
+          <app-icon name="upload" [size]="16" />
+          上传第一张图纸
+        </button>
+      </section>
+    } @else {
+      <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[900px] text-sm">
+            <thead class="border-b border-slate-100 text-left text-xs font-medium text-slate-400">
+              <tr>
+                <th class="px-5 py-3 font-medium">图纸名称</th>
+                <th class="px-3 py-3 font-medium">类型</th>
+                <th class="px-3 py-3 font-medium">大小</th>
+                <th class="px-3 py-3 font-medium">状态</th>
+                <th class="px-3 py-3 font-medium">问题数</th>
+                <th class="px-3 py-3 font-medium">上传时间</th>
+                <th class="px-5 py-3 text-right font-medium">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              @for (drawing of drawings(); track drawing.id) {
+                <tr class="transition-colors hover:bg-slate-50/70">
+                  <td class="max-w-[280px] px-5 py-3.5">
+                    <p class="truncate font-medium text-slate-900">{{ drawing.name }}</p>
+                    <p class="mt-0.5 truncate text-xs text-slate-400">
+                      {{ drawing.file_name }}
+                      <span class="ml-1 text-slate-300">v{{ drawing.version }}</span>
+                    </p>
+                  </td>
+                  <td class="px-3 py-3.5">
+                    <span class="rounded px-1.5 py-0.5 text-[11px] font-medium" [class]="typeBadge(drawing.file_type)">
+                      {{ typeLabel(drawing.file_type) }}
+                    </span>
+                  </td>
+                  <td class="whitespace-nowrap px-3 py-3.5 text-slate-500">{{ sizeText(drawing.file_size) }}</td>
+                  <td class="px-3 py-3.5">
+                    <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs" [class]="statusMeta(drawing).text">
+                      <span class="h-1.5 w-1.5 rounded-full" [class]="statusMeta(drawing).dot"></span>
+                      {{ statusMeta(drawing).label }}
+                    </span>
+                  </td>
+                  <td class="whitespace-nowrap px-3 py-3.5" [attr.title]="issueTitle(drawing)">
+                    @if (issueCells(drawing).length > 0) {
+                      <span class="inline-flex items-center gap-2 text-xs">
+                        @for (cell of issueCells(drawing); track cell.label) {
+                          <span class="inline-flex items-center gap-1">
+                            <span class="h-1.5 w-1.5 rounded-full" [class]="cell.dot"></span>
+                            <span [class]="cell.text">{{ cell.count }}</span>
+                          </span>
+                        }
+                      </span>
+                    } @else {
+                      <span class="text-xs text-slate-300">—</span>
+                    }
+                  </td>
+                  <td class="whitespace-nowrap px-3 py-3.5 text-xs text-slate-500">
+                    {{ dateTime(drawing.created_at) }}
+                  </td>
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center justify-end gap-0.5">
+                      <button type="button" class="text-action" (click)="viewAnnotations(drawing)">批注</button>
+                      <button type="button" class="text-action" (click)="viewReview(drawing)">查看</button>
+                      <button
+                        type="button"
+                        class="text-action"
+                        [disabled]="!canReReview(drawing)"
+                        [attr.title]="canReReview(drawing) ? null : '仅预审完成或失败的图纸可重新预审'"
+                        (click)="pendingReReview.set(drawing)"
+                      >
+                        重新预审
+                      </button>
+                      <button
+                        type="button"
+                        class="text-action"
+                        [disabled]="downloadingId() === drawing.id"
+                        (click)="download(drawing)"
+                      >
+                        {{ downloadingId() === drawing.id ? '获取中' : '下载' }}
+                      </button>
+                      <button
+                        type="button"
+                        class="text-action text-danger hover:bg-danger-soft hover:text-danger"
+                        (click)="pendingDelete.set(drawing)"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  } @else {
+    <!-- 成员管理 -->
+    @if (project(); as detail) {
+      @if (detail.members.length === 0) {
+        <section class="card flex flex-col items-center gap-3 px-6 py-16 text-center">
+          <span class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 text-slate-300">
+            <app-icon name="users" [size]="20" />
+          </span>
+          <p class="text-sm font-medium text-slate-700">还没有成员</p>
+          <p class="text-sm text-slate-400">成员决定项目内谁能看到并处理图纸与批注。</p>
+        </section>
+      } @else {
+        <div class="card divide-y divide-slate-100">
+          @for (member of detail.members; track member.user.id) {
+            <div class="flex items-center gap-3 px-5 py-4">
+              <span
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white"
+              >
+                {{ initials(member.user.name) }}
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium text-slate-900">{{ member.user.name }}</p>
+                <p class="truncate text-xs text-slate-400">{{ member.user.email }}</p>
+              </div>
+              <span class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                {{ roleLabel(member.project_role) }}
+              </span>
+              <span class="hidden shrink-0 text-xs text-slate-400 sm:block">
+                未关闭批注 {{ member.open_annotation_count }}
+              </span>
+              <span class="hidden shrink-0 text-xs text-slate-400 md:block">
+                {{ dateTime(member.joined_at) }} 加入
+              </span>
+            </div>
+          }
+        </div>
+      }
+    }
+  }
+</div>
+
+@if (uploadOpen()) {
+  <app-upload-modal
+    [projectId]="id()"
+    (closed)="uploadOpen.set(false)"
+    (uploaded)="onUploaded()"
+  />
+}
+
+@if (pendingDelete(); as drawing) {
+  <app-confirm-dialog
+    title="删除图纸"
+    [message]="'「' + drawing.name + '」删除后，其未关闭批注将一并归档，且不可恢复。'"
+    confirmLabel="删除"
+    tone="danger"
+    [busy]="actionBusy()"
+    (confirmed)="confirmDelete()"
+    (dismissed)="pendingDelete.set(null)"
+  />
+}
+
+@if (pendingReReview(); as drawing) {
+  <app-confirm-dialog
+    title="重新预审"
+    [message]="'将覆盖「' + drawing.name + '」当前的预审结果，是否继续？'"
+    confirmLabel="开始预审"
+    tone="primary"
+    [busy]="actionBusy()"
+    (confirmed)="confirmReReview()"
+    (dismissed)="pendingReReview.set(null)"
+  />
+}

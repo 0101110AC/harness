@@ -1,0 +1,537 @@
+<div class="flex min-h-[640px] flex-col gap-3" style="height: calc(100vh - 104px)">
+  <!-- 面包屑 -->
+  <nav class="flex min-w-0 shrink-0 items-center gap-1.5 text-xs text-slate-400" aria-label="面包屑">
+    <a routerLink="/projects" class="shrink-0 transition-colors hover:text-slate-700">项目管理</a>
+    <app-icon name="chevronRight" [size]="12" class="text-slate-300" />
+    @if (pid()) {
+      <a
+        [routerLink]="['/projects', pid()]"
+        class="max-w-[200px] truncate transition-colors hover:text-slate-700"
+        [attr.title]="projectName()"
+      >
+        {{ projectName() || '项目详情' }}
+      </a>
+      <app-icon name="chevronRight" [size]="12" class="text-slate-300" />
+    }
+    <span class="min-w-0 truncate">
+      {{ drawing()?.name || '预审中心' }}
+      @if (drawing(); as detail) {
+        <span class="ml-1 text-slate-300">v{{ detail.version }}</span>
+      }
+    </span>
+  </nav>
+
+  @if (loading()) {
+    <div class="flex min-h-0 flex-1 gap-3">
+      <div class="card w-[480px] shrink-0 animate-pulse"></div>
+      <div class="card flex-1 animate-pulse"></div>
+    </div>
+  } @else if (contextError()) {
+    <div class="card flex flex-1 flex-col items-center justify-center gap-3 text-center">
+      <app-icon name="alert" [size]="22" class="text-slate-300" />
+      <p class="text-sm font-medium text-slate-700">预审任务加载失败</p>
+      <p class="text-xs text-slate-400">可能是任务不存在，或你没有该项目的查看权限。</p>
+      <button type="button" class="btn-secondary" (click)="retry()">
+        <app-icon name="refresh" [size]="15" />
+        重试
+      </button>
+    </div>
+  } @else if (taskMissing()) {
+    <div class="card flex flex-1 flex-col items-center justify-center gap-4 text-center">
+      <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-300">
+        <app-icon name="review" [size]="26" />
+      </span>
+      <div>
+        <p class="text-sm font-medium text-slate-700">这张图纸还没有预审任务</p>
+        <p class="mt-1 text-xs text-slate-400">发起预审后，Agent 的执行过程与问题清单会实时出现在这里。</p>
+      </div>
+      <button type="button" class="btn-primary" (click)="onReReview()">
+        <app-icon name="play" [size]="15" />
+        发起预审
+      </button>
+    </div>
+  } @else {
+    <!-- 任务头部 -->
+    <header class="card shrink-0 px-4 py-3">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 class="truncate text-base font-semibold tracking-tight text-slate-900">
+              {{ drawing()?.name || '预审中心' }}
+            </h1>
+            <span
+              class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
+              [class]="runMeta().chip"
+            >
+              <span
+                class="h-1.5 w-1.5 rounded-full bg-current"
+                [class.animate-pulse]="runState() === 'running'"
+              ></span>
+              {{ runMeta().label }}
+            </span>
+            @if (drawing()?.file_type; as fileType) {
+              <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                [class.bg-danger-soft]="fileType === 'pdf'"
+                [class.text-danger]="fileType === 'pdf'"
+                [class.bg-primary-soft]="fileType === 'dxf'"
+                [class.text-primary]="fileType === 'dxf'"
+              >
+                {{ fileType === 'pdf' ? 'PDF' : 'DXF' }}
+              </span>
+            }
+          </div>
+          <p class="mt-1 truncate text-xs text-slate-500">
+            {{ stageLabel() || '等待任务推进' }}
+            @if (task(); as snapshot) {
+              <span class="text-slate-300"> · </span>问题 {{ snapshot.issue_total || issues().length }} 条
+              @if (snapshot.issue_blocker > 0) {
+                <span class="text-severity-blocker">严重 {{ snapshot.issue_blocker }}</span>
+              }
+            }
+          </p>
+        </div>
+
+        <span class="flex-1"></span>
+
+        <div class="flex shrink-0 items-center gap-2">
+          <span class="text-xs tabular-nums text-slate-400">{{ percent() }}%</span>
+          <button
+            type="button"
+            class="btn-secondary !px-3 !py-1.5 text-xs"
+            [disabled]="!isTerminal()"
+            [attr.title]="isTerminal() ? '将覆盖当前预审结果' : '任务运行中，无法重新发起'"
+            (click)="onReReview()"
+          >
+            <app-icon name="refresh" [size]="13" />
+            重新预审
+          </button>
+          <button
+            type="button"
+            class="btn-primary !px-3 !py-1.5 text-xs"
+            [disabled]="!reportReady() && !isTerminal()"
+            (click)="viewReport()"
+          >
+            <app-icon name="file" [size]="13" />
+            查看报告初稿
+          </button>
+        </div>
+      </div>
+
+      <!-- 进度条：只增不减；中断时暂停并转琥珀色（prd-02 §5.2） -->
+      <div class="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+        <div
+          class="h-full rounded-full transition-[width] duration-300 ease-standard"
+          [class]="runMeta().bar"
+          [style.width.%]="percent()"
+        ></div>
+      </div>
+    </header>
+
+    <!-- 连接状态 -->
+    @if (streamBanner(); as banner) {
+      <div
+        class="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs"
+        [class.bg-warning-soft]="banner.tone === 'warning'"
+        [class.text-warning]="banner.tone === 'warning'"
+        [class.bg-danger-soft]="banner.tone === 'danger'"
+        [class.text-danger]="banner.tone === 'danger'"
+      >
+        <app-icon name="loader" [size]="14" [class.animate-spin]="streamState() === 'reconnecting'" />
+        <span class="flex-1">{{ banner.text }}</span>
+        @if (streamState() === 'disconnected') {
+          <button type="button" class="font-medium underline" (click)="reconnect()">重新连接</button>
+        }
+      </div>
+    }
+
+    <!-- 稍后处理的风险提示 -->
+    @if (deferredRisk(); as risk) {
+      <div class="flex shrink-0 items-center gap-2 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
+        <app-icon name="alert" [size]="14" />
+        <span class="flex-1">有 {{ risk.items.length }} 项风险待确认，流程已暂停。</span>
+        <button type="button" class="font-medium underline" (click)="reopenRisk()">去处理</button>
+      </div>
+    }
+
+    <!-- 主体：左清单 + 分栏 + 画布 -->
+    <div class="flex min-h-0 flex-1 overflow-hidden rounded-card bg-white shadow-card">
+      <!-- 左侧清单 -->
+      <section class="flex min-h-0 shrink-0 flex-col" [style.width.px]="leftWidth()">
+        <div class="flex h-10 shrink-0 items-center gap-1.5 border-b border-slate-100 px-3">
+          <app-icon name="filter" [size]="13" class="text-slate-400" />
+          <app-multi-select
+            placeholder="严重度"
+            [options]="severityOptions"
+            [selected]="severityFilter()"
+            (selectionChange)="onSeverityFilter($event)"
+          />
+          <app-multi-select
+            placeholder="专业"
+            [options]="disciplineOptions"
+            [selected]="disciplineFilter()"
+            (selectionChange)="onDisciplineFilter($event)"
+          />
+          <app-multi-select
+            placeholder="状态"
+            [options]="statusOptions"
+            [selected]="statusFilter()"
+            (selectionChange)="onStatusFilter($event)"
+          />
+          <span class="ml-auto shrink-0 text-[11px] text-slate-400">{{ filteredIssues().length }} 条</span>
+        </div>
+
+        @if (selectedCount() > 0) {
+          <div class="flex h-10 shrink-0 items-center gap-2 border-b border-primary/20 bg-primary-soft px-3">
+            <span class="text-xs font-medium text-primary">已选 {{ selectedCount() }} 条</span>
+            <button type="button" class="text-[11px] text-primary/70 hover:text-primary" (click)="clearSelection()">
+              清除
+            </button>
+            <button
+              type="button"
+              class="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+              [disabled]="batchBusy()"
+              (click)="batchConfirm.set(true)"
+            >
+              <app-icon name="check" [size]="13" />
+              批量采纳
+            </button>
+          </div>
+        }
+
+        <!-- 表头 -->
+        <div class="flex h-9 shrink-0 items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 text-[11px] font-medium text-slate-400">
+          <input
+            type="checkbox"
+            class="checkbox"
+            name="select-all-issues"
+            aria-label="全选当前列表"
+            [checked]="allVisibleSelected()"
+            (change)="toggleAllVisible()"
+          />
+          <span class="w-9 shrink-0">严重度</span>
+          <span class="w-7 shrink-0">专业</span>
+          <span class="min-w-0 flex-1">问题</span>
+          <span class="w-11 shrink-0 text-center">状态</span>
+          <span class="w-[52px] shrink-0 text-right">操作</span>
+        </div>
+
+        <!-- 列表（固定行高窗口化） -->
+        <div
+          #listViewport
+          class="min-h-0 flex-1 overflow-y-auto"
+          (scroll)="onListScroll()"
+        >
+          @if (issuesLoading()) {
+            @for (placeholder of [0, 1, 2, 3, 4, 5, 6, 7]; track placeholder) {
+              <div class="flex h-14 items-center gap-2 border-b border-slate-50 px-3">
+                <div class="h-3 w-3 animate-pulse rounded bg-slate-100"></div>
+                <div class="h-2 w-2 animate-pulse rounded-full bg-slate-100"></div>
+                <div class="h-3 flex-1 animate-pulse rounded bg-slate-100"></div>
+                <div class="h-4 w-10 animate-pulse rounded bg-slate-100"></div>
+              </div>
+            }
+          } @else if (issuesError()) {
+            <div class="flex h-full flex-col items-center justify-center gap-2 text-center">
+              <app-icon name="alert" [size]="18" class="text-slate-300" />
+              <p class="text-xs text-slate-500">问题清单加载失败</p>
+              <button type="button" class="text-action" (click)="loadIssues()">重试</button>
+            </div>
+          } @else if (filteredIssues().length === 0) {
+            <div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+              <app-icon name="inbox" [size]="22" class="text-slate-200" />
+              <p class="text-xs text-slate-400">
+                @if (issues().length === 0) {
+                  还没有发现问题，Agent 检出后会实时出现在这里。
+                } @else {
+                  当前筛选条件下没有问题，试试放宽筛选。
+                }
+              </p>
+            </div>
+          } @else {
+            <div class="relative" [style.height.px]="visibleWindow().totalHeight">
+              <div
+                class="absolute inset-x-0 top-0"
+                [style.transform]="'translateY(' + visibleWindow().offset + 'px)'"
+              >
+                @for (issue of visibleWindow().rows; track issue.id) {
+                  <div
+                    class="flex h-14 cursor-pointer items-center gap-2 border-b border-slate-50 px-3 transition-colors hover:bg-slate-50/70"
+                    [class.bg-primary-soft]="focusedIssueId() === issue.id"
+                    [attr.title]="issue.description || issue.title"
+                    (click)="rowClick(issue)"
+                  >
+                    <input
+                      type="checkbox"
+                      class="checkbox"
+                      name="select-issue"
+                      [attr.value]="issue.id"
+                      [checked]="isSelected(issue.id)"
+                      (click)="toggleRow(issue.id, $event)"
+                    />
+                    <span class="flex w-9 shrink-0 items-center gap-1 text-[11px]" [class]="severityText(issue.severity)">
+                      <span class="h-1.5 w-1.5 shrink-0 rounded-full" [class]="severityDot(issue.severity)"></span>
+                      {{ severityLabel(issue.severity) }}
+                    </span>
+                    <span class="w-7 shrink-0 truncate text-[11px] text-slate-500">
+                      {{ disciplineLabel(issue.discipline) }}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-[13px] leading-5 text-slate-800">{{ issue.title }}</p>
+                      <p class="truncate text-[11px] leading-4 text-slate-400">
+                        @if (issue.live) {
+                          <span class="mr-1 rounded bg-primary-soft px-1 text-[10px] font-medium text-primary">实时</span>
+                        }
+                        {{ issue.ruleCode || 'AI 判断' }} · 置信 {{ issue.confidence }}%
+                      </p>
+                    </div>
+                    <span
+                      class="w-11 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-medium"
+                      [class]="statusChip(issue.status)"
+                    >
+                      {{ statusLabel(issue.status) }}
+                    </span>
+                    <span class="flex w-[52px] shrink-0 items-center justify-end">
+                      <button
+                        type="button"
+                        class="icon-btn !h-6 !w-6"
+                        title="定位到画布"
+                        [disabled]="!issue.locationValid"
+                        (click)="locate(issue, $event)"
+                      >
+                        <app-icon name="locate" [size]="13" />
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn !h-6 !w-6"
+                        title="采纳为批注"
+                        [disabled]="issue.status !== 'PENDING' || adoptBusyId() === issue.id"
+                        (click)="adopt(issue, $event)"
+                      >
+                        <app-icon [name]="adoptBusyId() === issue.id ? 'loader' : 'check'" [size]="13" />
+                      </button>
+                    </span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- 统计 -->
+        <div class="flex h-8 shrink-0 items-center gap-2 border-t border-slate-100 px-3 text-[11px] text-slate-400">
+          <span>共 {{ issues().length }} 条</span>
+          <span class="flex items-center gap-1">
+            <span class="h-1.5 w-1.5 rounded-full bg-severity-blocker"></span>{{ severityCounts().BLOCKER }}
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="h-1.5 w-1.5 rounded-full bg-severity-major"></span>{{ severityCounts().MAJOR }}
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="h-1.5 w-1.5 rounded-full bg-severity-minor"></span>{{ severityCounts().MINOR }}
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="h-1.5 w-1.5 rounded-full bg-severity-info"></span>{{ severityCounts().INFO }}
+          </span>
+        </div>
+      </section>
+
+      <!-- 分栏拖拽条 -->
+      <div
+        class="group relative w-1.5 shrink-0 cursor-col-resize bg-slate-100 transition-colors hover:bg-primary/30 focus-visible:bg-primary/40 focus-visible:outline-none"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整问题清单宽度"
+        tabindex="0"
+        (pointerdown)="startResize($event)"
+        (keydown)="resizeByKeyboard($event)"
+      >
+        <span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-slate-200 group-hover:bg-primary/60"></span>
+      </div>
+
+      <!-- 右侧画布 -->
+      <section class="flex min-w-0 flex-1 flex-col bg-slate-50/40">
+        <div class="flex h-10 shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3">
+          <app-icon name="layers" [size]="14" class="text-slate-400" />
+          <span class="text-xs font-medium text-slate-700">图纸画布</span>
+          <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+            {{ pdfStatus() === 'ready' ? 'PDF.js' : isPdf() ? '加载中' : 'DXF' }}
+          </span>
+
+          <div class="ml-auto flex items-center gap-0.5">
+            <button type="button" class="icon-btn !h-7 !w-7" title="缩小" (click)="zoomOut()">
+              <app-icon name="zoomOut" [size]="14" />
+            </button>
+            <span class="w-11 text-center text-[11px] tabular-nums text-slate-500">{{ zoom() }}%</span>
+            <button type="button" class="icon-btn !h-7 !w-7" title="放大" (click)="zoomIn()">
+              <app-icon name="zoomIn" [size]="14" />
+            </button>
+            <button type="button" class="icon-btn !h-7 !w-7" title="适应宽度" (click)="fitWidth()">
+              <app-icon name="fit" [size]="14" />
+            </button>
+            <span class="mx-1 h-4 w-px bg-slate-200"></span>
+            <button
+              type="button"
+              class="icon-btn !h-7 !w-7"
+              title="上一页"
+              [disabled]="pageNo() <= 1"
+              (click)="prevPage()"
+            >
+              <app-icon name="chevronRight" [size]="14" class="rotate-180" />
+            </button>
+            <span class="text-[11px] tabular-nums text-slate-500">{{ pageNo() }}/{{ pageCount() }}</span>
+            <button
+              type="button"
+              class="icon-btn !h-7 !w-7"
+              title="下一页"
+              [disabled]="pageNo() >= pageCount()"
+              (click)="nextPage()"
+            >
+              <app-icon name="chevronRight" [size]="14" />
+            </button>
+          </div>
+        </div>
+
+        <div #canvasViewport class="relative min-h-0 flex-1 overflow-auto p-6">
+          @if (!isPdf()) {
+            <!-- 降级：DXF 在线渲染不在本期范围（与批注页保持同一口径） -->
+            <div class="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <span
+                class="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-300"
+              >
+                <app-icon name="layers" [size]="26" />
+              </span>
+              <div>
+                <p class="text-sm font-medium text-slate-700">DXF 暂不支持在线渲染</p>
+                <p class="mt-1 max-w-sm text-xs text-slate-400">
+                  DXF 请下载后用 CAD 查看；PDF 图纸在预审中心支持图面定位与高亮。
+                </p>
+              </div>
+            </div>
+          } @else {
+            <div
+              class="relative mx-auto rounded-sm bg-white shadow-float ring-1 ring-slate-200"
+              [style.width.px]="pageBoxWidth()"
+              [style.height.px]="pageBoxHeight()"
+            >
+              <!-- 真实渲染层：只负责把这一页画出来，坐标与叠加层留在父组件 -->
+              <app-pdf-canvas
+                [url]="pdfUrl()"
+                [pageNo]="pageNo()"
+                [scale]="zoom()"
+                [reload]="pdfAttempt()"
+                (pageReady)="onPdfPageReady($event)"
+                (statusChange)="onPdfStatus($event)"
+              />
+
+              @for (rect of canvasRects(); track rect.id) {
+                <button
+                  type="button"
+                  class="absolute rounded-sm border-2 transition-all"
+                  [class]="boxClass(rect.severity, rect.selected)"
+                  [style.left.px]="rect.left"
+                  [style.top.px]="rect.top"
+                  [style.width.px]="rect.width"
+                  [style.height.px]="rect.height"
+                  [attr.title]="rect.title"
+                  (click)="boxClick(rect.id)"
+                >
+                  @if (rect.selected) {
+                    <span
+                      class="absolute -top-5 left-0 max-w-[220px] truncate rounded bg-slate-900/90 px-1.5 py-0.5 text-[10px] text-white"
+                    >
+                      {{ rect.title }}
+                    </span>
+                  }
+                </button>
+              }
+
+              @if (pdfStatus() !== 'ready') {
+                <div
+                  class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/85 text-center"
+                >
+                  @if (pdfStatus() === 'error') {
+                    <p class="max-w-xs text-xs text-danger">{{ pdfError() ?? '图纸加载失败' }}</p>
+                    <button type="button" class="text-action" (click)="retryPdf()">重试</button>
+                  } @else {
+                    <app-icon name="loader" [size]="18" class="animate-spin text-slate-400" />
+                    <p class="text-xs text-slate-400">正在渲染图纸…</p>
+                  }
+                </div>
+              }
+
+              @if (pdfStatus() === 'ready' && canvasRects().length === 0) {
+                <p class="pointer-events-none absolute inset-x-0 bottom-4 text-center text-xs text-slate-300">
+                  {{ pageIssueCount() === 0 ? '本页暂无问题' : '本页问题坐标待回填' }}
+                </p>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="flex h-7 shrink-0 items-center gap-2 border-t border-slate-100 bg-white px-3 text-[11px] text-slate-400">
+          <span>第 {{ pageNo() }}/{{ pageCount() }} 页 · {{ zoom() }}%</span>
+          <span class="text-slate-300">·</span>
+          <span>高亮 {{ canvasRects().length }} 处</span>
+          <span class="ml-auto">
+            @if (!isPdf()) {
+              DXF 仅支持下载
+            } @else if (pdfStatus() === 'ready') {
+              PDF.js 渲染 · 坐标单位 pt
+            } @else if (pdfStatus() === 'error') {
+              渲染失败
+            } @else {
+              正在加载图纸…
+            }
+          </span>
+        </div>
+      </section>
+    </div>
+
+    <!-- 思考链路 -->
+    <div class="shrink-0 transition-[height] duration-200" [style.height.px]="thoughtsCollapsed() ? 44 : 200">
+      <app-thought-panel
+        [lines]="thoughts()"
+        [collapsed]="thoughtsCollapsed()"
+        [status]="thoughtStatus()"
+        [percent]="percent()"
+        [summary]="thoughtSummary()"
+        (collapsedChange)="toggleThoughts($event)"
+      />
+    </div>
+  }
+</div>
+
+@if (riskInterrupt(); as interrupt) {
+  <app-risk-confirm-modal
+    [interrupt]="interrupt"
+    [busy]="riskBusy()"
+    [submitError]="riskError()"
+    (submitted)="submitRisk($event)"
+    (dismissed)="deferRisk()"
+    (expired)="onRiskExpired()"
+  />
+}
+
+@if (batchConfirm()) {
+  <app-confirm-dialog
+    title="批量采纳"
+    [message]="'将选中的 ' + selectedCount() + ' 条问题转为批注草稿，指派给当前用户。整批成功或整批回滚。'"
+    confirmLabel="确认采纳"
+    tone="primary"
+    [busy]="batchBusy()"
+    (confirmed)="confirmBatchAdopt()"
+    (dismissed)="batchConfirm.set(false)"
+  />
+}
+
+@if (pendingReReview()) {
+  <app-confirm-dialog
+    title="重新预审"
+    [message]="'将覆盖当前预审结果并重新执行 Agent 流程，是否继续？'"
+    confirmLabel="开始预审"
+    tone="primary"
+    [busy]="reReviewBusy()"
+    (confirmed)="confirmReReview()"
+    (dismissed)="pendingReReview.set(false)"
+  />
+}

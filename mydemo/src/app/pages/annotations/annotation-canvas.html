@@ -1,0 +1,702 @@
+<div class="flex min-h-[640px] flex-col gap-3" style="height: calc(100vh - 104px)">
+  <!-- 面包屑 -->
+  <nav class="flex min-w-0 shrink-0 items-center gap-1.5 text-xs text-slate-400" aria-label="面包屑">
+    <a routerLink="/projects" class="shrink-0 transition-colors hover:text-slate-700">项目管理</a>
+    <app-icon name="chevronRight" [size]="12" class="text-slate-300" />
+    <a
+      [routerLink]="['/projects', pid()]"
+      class="max-w-[200px] truncate transition-colors hover:text-slate-700"
+      [attr.title]="project()?.name ?? '项目详情'"
+    >
+      {{ project()?.name || '项目详情' }}
+    </a>
+    <app-icon name="chevronRight" [size]="12" class="text-slate-300" />
+    <span class="min-w-0 truncate">{{ drawing()?.name || '图纸批注' }}</span>
+  </nav>
+
+  @if (loading()) {
+    <div class="flex min-h-0 flex-1 gap-3">
+      <div class="card flex-1 animate-pulse"></div>
+      <div class="card w-[380px] shrink-0 animate-pulse"></div>
+    </div>
+  } @else if (loadError()) {
+    <div class="card flex flex-1 flex-col items-center justify-center gap-3 text-center">
+      <app-icon name="alert" [size]="22" class="text-slate-300" />
+      <p class="text-sm font-medium text-slate-700">图纸加载失败</p>
+      <p class="text-xs text-slate-400">可能是图纸不存在，或你没有该项目的查看权限。</p>
+      <button type="button" class="btn-secondary" (click)="retry()">
+        <app-icon name="refresh" [size]="15" />
+        重试
+      </button>
+    </div>
+  } @else {
+    <!-- 图纸头部 -->
+    <header class="card shrink-0 px-4 py-3">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 class="truncate text-base font-semibold tracking-tight text-slate-900">
+              {{ drawing()?.name || '图纸批注' }}
+            </h1>
+            <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">
+              v{{ drawing()?.version ?? 1 }}
+            </span>
+            @if (drawing()?.file_type; as fileType) {
+              <span
+                class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                [class.bg-danger-soft]="fileType === 'pdf'"
+                [class.text-danger]="fileType === 'pdf'"
+                [class.bg-primary-soft]="fileType === 'dxf'"
+                [class.text-primary]="fileType === 'dxf'"
+              >
+                {{ fileType === 'pdf' ? 'PDF' : 'DXF' }}
+              </span>
+            }
+          </div>
+          <p class="mt-1 truncate text-xs text-slate-500">
+            共 {{ annotations().length }} 条批注
+            <span class="text-slate-300"> · </span>未关闭 {{ openCount() }}
+            <span class="text-slate-300"> · </span>待复核 {{ tabCounts().MODIFIED }}
+            @if (tabCounts().PENDING_CONFIRM > 0) {
+              <span class="text-slate-300"> · </span>待确认 {{ tabCounts().PENDING_CONFIRM }}
+            }
+          </p>
+        </div>
+
+        <span class="flex-1"></span>
+
+        <div class="flex shrink-0 items-center gap-2">
+          <a
+            [routerLink]="['/projects', pid(), 'drawings', did(), 'review']"
+            class="btn-secondary !px-3 !py-1.5 text-xs"
+          >
+            <app-icon name="review" [size]="13" />
+            查看预审
+          </a>
+          <a [routerLink]="['/projects', pid()]" class="btn-secondary !px-3 !py-1.5 text-xs">
+            <app-icon name="arrowLeft" [size]="13" />
+            返回项目
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <div class="flex min-h-0 flex-1 overflow-hidden rounded-card bg-white shadow-card">
+      <!-- 左侧 48px 工具条（prd-03 §3.1） -->
+      <aside class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-slate-100 py-2" aria-label="画布工具">
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          [class]="tool() === 'select' ? 'bg-primary-soft text-primary' : 'text-slate-500 hover:bg-slate-100'"
+          title="选择 / 平移（V）"
+          [attr.aria-pressed]="tool() === 'select'"
+          (click)="setTool('select')"
+        >
+          <app-icon name="pointer" [size]="16" />
+        </button>
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          [class]="tool() === 'rect' ? 'bg-primary-soft text-primary' : 'text-slate-500 hover:bg-slate-100'"
+          title="矩形框（R）"
+          [attr.aria-pressed]="tool() === 'rect'"
+          [disabled]="!isPdf()"
+          (click)="setTool('rect')"
+        >
+          <app-icon name="square" [size]="16" />
+        </button>
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          [class]="tool() === 'point' ? 'bg-primary-soft text-primary' : 'text-slate-500 hover:bg-slate-100'"
+          title="点标记（P）"
+          [attr.aria-pressed]="tool() === 'point'"
+          [disabled]="!isPdf()"
+          (click)="setTool('point')"
+        >
+          <app-icon name="mapPin" [size]="16" />
+        </button>
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          [class]="tool() === 'text' ? 'bg-primary-soft text-primary' : 'text-slate-500 hover:bg-slate-100'"
+          title="文字（T）"
+          [attr.aria-pressed]="tool() === 'text'"
+          [disabled]="!isPdf()"
+          (click)="setTool('text')"
+        >
+          <app-icon name="text" [size]="16" />
+        </button>
+
+        <span class="my-1 h-px w-6 bg-slate-100"></span>
+
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100"
+          title="撤销未提交的绘制（Ctrl+Z）"
+          [disabled]="!isPdf()"
+          (click)="undo()"
+        >
+          <app-icon name="undo" [size]="16" />
+        </button>
+
+        <span class="mt-auto text-[10px] text-slate-300" style="writing-mode: vertical-rl">第 {{ pageNo() }} 页</span>
+      </aside>
+
+      <!-- 画布 -->
+      <section class="flex min-w-0 flex-1 flex-col bg-slate-50/40">
+        <div class="flex h-10 shrink-0 items-center gap-2 border-b border-slate-100 bg-white px-3">
+          <app-icon name="layers" [size]="14" class="text-slate-400" />
+          <span class="text-xs font-medium text-slate-700">图纸画布</span>
+          <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+            {{ !isPdf() ? 'DXF · 仅批注列表' : tool() === 'select' ? '选择态' : '绘制态 · 点击已有批注不会选中' }}
+          </span>
+          @if (isPdf()) {
+            <span
+              class="rounded px-1.5 py-0.5 text-[10px]"
+              [class.bg-primary-soft]="pdfStatus() === 'ready'"
+              [class.text-primary]="pdfStatus() === 'ready'"
+              [class.bg-slate-100]="pdfStatus() !== 'ready'"
+              [class.text-slate-500]="pdfStatus() !== 'ready'"
+            >
+              {{ pdfStatus() === 'ready' ? 'PDF.js 已渲染' : pdfStatus() === 'error' ? '渲染失败' : '渲染中…' }}
+            </span>
+          }
+
+          <div class="ml-auto flex items-center gap-0.5">
+            @if (isPdf()) {
+              <button type="button" class="icon-btn !h-7 !w-7" title="缩小" (click)="zoomOut()">
+                <app-icon name="zoomOut" [size]="14" />
+              </button>
+              <span class="w-11 text-center text-[11px] tabular-nums text-slate-500">{{ zoom() }}%</span>
+              <button type="button" class="icon-btn !h-7 !w-7" title="放大" (click)="zoomIn()">
+                <app-icon name="zoomIn" [size]="14" />
+              </button>
+              <button type="button" class="icon-btn !h-7 !w-7" title="适应宽度" (click)="fitWidth()">
+                <app-icon name="fit" [size]="14" />
+              </button>
+              <span class="mx-1 h-4 w-px bg-slate-200"></span>
+              <button
+                type="button"
+                class="icon-btn !h-7 !w-7"
+                title="上一页"
+                [disabled]="pageNo() <= 1"
+                (click)="prevPage()"
+              >
+                <app-icon name="chevronRight" [size]="14" class="rotate-180" />
+              </button>
+              <span class="text-[11px] tabular-nums text-slate-500">{{ pageNo() }}/{{ pageCount() }}</span>
+              <button
+                type="button"
+                class="icon-btn !h-7 !w-7"
+                title="下一页"
+                [disabled]="pageNo() >= pageCount()"
+                (click)="nextPage()"
+              >
+                <app-icon name="chevronRight" [size]="14" />
+              </button>
+            } @else {
+              <button
+                type="button"
+                class="btn-secondary !px-2.5 !py-1 text-[11px]"
+                [disabled]="downloading()"
+                (click)="downloadDrawing()"
+              >
+                <app-icon name="download" [size]="13" />
+                {{ downloading() ? '获取中…' : '下载图纸' }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div #scrollEl class="relative min-h-0 flex-1 overflow-auto p-6">
+          @if (!isPdf()) {
+            <!-- DXF：PDF.js 无法渲染，给空状态与下载入口；批注列表照常可用 -->
+            <div
+              class="mx-auto flex h-full min-h-[420px] max-w-[560px] flex-col items-center justify-center gap-3 rounded-card border border-dashed border-slate-200 bg-white/70 px-8 py-12 text-center"
+            >
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                <app-icon name="file" [size]="22" />
+              </span>
+              <p class="text-sm font-medium text-slate-800">DXF 暂不支持在线渲染</p>
+              <p class="max-w-[400px] text-xs leading-5 text-slate-500">
+                当前版本仅支持 PDF 在线预览。DXF 图纸可下载后用 CAD 打开查看；右侧批注列表仍可正常查看、评论与流转。
+              </p>
+              <button
+                type="button"
+                class="btn-secondary mt-1"
+                [disabled]="downloading()"
+                (click)="downloadDrawing()"
+              >
+                <app-icon name="download" [size]="15" />
+                {{ downloading() ? '获取下载地址…' : '下载 DXF 图纸' }}
+              </button>
+              <p class="text-[11px] text-slate-400">下载链接为短时签名地址，10 分钟内有效</p>
+            </div>
+          } @else if (pdfStatus() === 'error') {
+            <div class="card mx-auto flex h-full min-h-[420px] max-w-[520px] flex-col items-center justify-center gap-3 text-center">
+              <app-icon name="alert" [size]="22" class="text-slate-300" />
+              <p class="text-sm font-medium text-slate-700">图纸预览加载失败</p>
+              <p class="max-w-[360px] break-words text-xs leading-5 text-slate-400">
+                {{ pdfMessage() || '可能是签名地址已过期，或文件本身已损坏。' }}
+              </p>
+              <button type="button" class="btn-secondary" (click)="retryPdf()">
+                <app-icon name="refresh" [size]="15" />
+                重新加载
+              </button>
+            </div>
+          } @else {
+            <div
+              class="relative mx-auto"
+              [style.width.px]="pageWidth()"
+              [style.height.px]="pageHeight()"
+              [style.transform]="'translate(' + pan().x + 'px, ' + pan().y + 'px)'"
+            >
+              <div
+                #pageEl
+                class="relative h-full w-full select-none rounded-sm bg-white shadow-float ring-1 ring-slate-200"
+                [class.cursor-crosshair]="tool() !== 'select'"
+                [class.cursor-grab]="tool() === 'select'"
+                (pointerdown)="onPointerDown($event)"
+                (pointermove)="onPointerMove($event)"
+                (pointerup)="onPointerUp($event)"
+                (pointercancel)="onPointerCancel($event)"
+                (wheel)="onWheel($event)"
+              >
+                <!-- 真实 PDF 位图：backing store 按 devicePixelRatio 放大，CSS 尺寸与 viewport 一致 -->
+                <app-pdf-canvas
+                  [url]="pdfUrl()"
+                  [pageNo]="pageNo()"
+                  [scale]="zoom()"
+                  [reload]="pdfAttempt()"
+                  (pageReady)="onPdfPageReady($event)"
+                  (statusChange)="onPdfStatus($event)"
+                />
+
+                @if (pdfStatus() === 'loading') {
+                  <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/70">
+                    <app-icon name="loader" [size]="20" class="animate-spin text-slate-400" />
+                    <p class="text-[11px] text-slate-400">正在渲染图纸…</p>
+                  </div>
+                }
+
+                <!-- 已落库批注：严重度色描边 2px + 8% 填充；坐标来自 toScreen(location, viewport) -->
+                @for (shape of shapes(); track shape.id) {
+                  @if (shape.shapeType === 'POINT') {
+                    <button
+                      type="button"
+                      class="absolute rounded-full border-2 transition-shadow"
+                      [style.left.px]="shape.rect.left + shape.rect.width / 2 - 10"
+                      [style.top.px]="shape.rect.top + shape.rect.height / 2 - 10"
+                      [style.width.px]="20"
+                      [style.height.px]="20"
+                      [style.borderColor]="shape.color"
+                      [style.background]="shape.fill"
+                      [style.borderWidth.px]="shape.selected ? 3 : 2"
+                      [style.boxShadow]="shape.selected ? '0 0 0 3px rgba(24,144,255,.25)' : 'none'"
+                      [style.opacity]="shape.closed && !shape.selected ? 0.4 : 1"
+                      [attr.title]="shape.title"
+                      (pointerdown)="onShapePointerDown($event)"
+                      (click)="boxClick(shape, $event)"
+                      (mouseenter)="onShapeEnter(shape)"
+                      (mouseleave)="onShapeLeave()"
+                    >
+                      <span
+                        class="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-[4px] text-[10px] font-semibold text-white shadow"
+                        [style.background]="shape.color"
+                      >
+                        {{ shape.seq }}
+                      </span>
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="absolute rounded-sm border-2 transition-shadow"
+                      [style.left.px]="shape.rect.left"
+                      [style.top.px]="shape.rect.top"
+                      [style.width.px]="shape.rect.width"
+                      [style.height.px]="shape.rect.height"
+                      [style.borderColor]="shape.color"
+                      [style.borderStyle]="shape.closed ? 'dashed' : 'solid'"
+                      [style.borderWidth.px]="shape.selected ? 3 : 2"
+                      [style.background]="shape.fill"
+                      [style.boxShadow]="shape.selected ? '0 0 0 3px rgba(24,144,255,.25)' : 'none'"
+                      [style.opacity]="shape.closed && !shape.selected ? 0.4 : 1"
+                      [attr.title]="shape.title"
+                      (pointerdown)="onShapePointerDown($event)"
+                      (click)="boxClick(shape, $event)"
+                      (mouseenter)="onShapeEnter(shape)"
+                      (mouseleave)="onShapeLeave()"
+                    >
+                      <span
+                        class="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-[4px] text-[10px] font-semibold text-white shadow"
+                        [style.background]="shape.color"
+                      >
+                        {{ shape.seq }}
+                      </span>
+                      @if (shape.shapeType === 'TEXT') {
+                        <span
+                          class="absolute left-0 top-full mt-0.5 whitespace-nowrap rounded bg-white/90 px-1 text-[10px] text-slate-700 shadow-sm"
+                        >
+                          {{ shape.title }}
+                        </span>
+                      }
+                    </button>
+                  }
+                }
+
+                <!-- 未提交的草稿：location 落库坐标 → 当前 viewport 的屏幕矩形 -->
+                @for (draft of draftShapes(); track draft.id) {
+                  <div
+                    class="pointer-events-none absolute rounded-sm border-2 border-dashed border-primary bg-primary/10"
+                    [style.left.px]="draft.rect.left"
+                    [style.top.px]="draft.rect.top"
+                    [style.width.px]="draft.rect.width"
+                    [style.height.px]="draft.rect.height"
+                  >
+                    <span
+                      class="absolute -left-2 -top-2 rounded bg-primary px-1 py-0.5 text-[10px] font-medium text-white"
+                    >
+                      待创建
+                    </span>
+                  </div>
+                }
+
+                <!-- 拖拽中的矩形：实时显示屏幕尺寸 -->
+                @if (dragRect(); as rect) {
+                  <div
+                    class="pointer-events-none absolute rounded-sm border-2 border-primary/70 bg-primary/10"
+                    [style.left.px]="rect.left"
+                    [style.top.px]="rect.top"
+                    [style.width.px]="rect.width"
+                    [style.height.px]="rect.height"
+                  >
+                    <span
+                      class="absolute left-0 top-full mt-0.5 whitespace-nowrap rounded bg-slate-900/85 px-1 py-0.5 text-[10px] tabular-nums text-white"
+                    >
+                      {{ dragLabel() }}
+                    </span>
+                  </div>
+                }
+
+                <!-- 文字工具就地输入（Enter 提交，Esc 取消） -->
+                @if (textSpot(); as spot) {
+                  <div class="absolute z-30" [style.left.px]="spot.x" [style.top.px]="spot.y" (pointerdown)="$event.stopPropagation()">
+                    <input
+                      #textInput
+                      type="text"
+                      maxlength="60"
+                      class="w-[180px] rounded border border-primary bg-white px-1.5 py-0.5 text-xs shadow-float outline-none"
+                      placeholder="输入文字后 Enter 提交"
+                      [value]="textValue()"
+                      (input)="onTextInput($event)"
+                      (keydown)="onTextKeydown($event)"
+                    />
+                  </div>
+                }
+
+                <!-- 悬停浮层（延迟 200ms 出现，移出 300ms 消失） -->
+                @if (hoverCard(); as card) {
+                  <div
+                    class="pointer-events-none absolute z-30 w-[220px] rounded-lg border border-slate-100 bg-white p-2.5 shadow-float"
+                    [style.left.px]="card.x"
+                    [style.top.px]="card.y"
+                    [style.transform]="'translate(-50%, calc(-100% - 8px))'"
+                  >
+                    <p class="truncate text-xs font-medium text-slate-900">{{ card.title }}</p>
+                    <p class="mt-1 text-[11px] text-slate-500">{{ card.statusLabel }} · {{ card.assigneeName }}</p>
+                    <p class="mt-1 text-[10px] text-slate-400">点击查看时间线</p>
+                  </div>
+                }
+
+                @if (shapes().length === 0 && draftShapes().length === 0) {
+                  @if (annotations().length === 0) {
+                    <p class="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-slate-300">
+                      本图纸暂未发现问题
+                    </p>
+                  } @else {
+                    <p class="pointer-events-none absolute inset-x-0 bottom-6 text-center text-xs text-slate-300">
+                      {{ pageShapeCount() === 0 ? '本页暂无批注，选中矩形工具后拉框创建' : '本页批注被筛选隐藏' }}
+                    </p>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="flex h-7 shrink-0 items-center gap-2 border-t border-slate-100 bg-white px-3 text-[11px] text-slate-400">
+          <span>{{ isPdf() ? 'PDF.js 渲染' : 'DXF · 需下载查看' }}</span>
+          <span class="text-slate-300">·</span>
+          <span>本页 {{ shapes().length }} 处批注</span>
+          <span class="ml-auto tabular-nums">
+            第 {{ pageNo() }}/{{ pageCount() }} 页 · {{ isPdf() ? zoom() + '%' : '100%' }} · 单位
+            {{ isPdf() ? 'pt' : 'mm' }}
+          </span>
+        </div>
+      </section>
+
+      <!-- 右侧 380px 批注面板 -->
+      <aside class="flex w-[380px] shrink-0 flex-col border-l border-slate-100">
+        @if (selected(); as annotation) {
+          <!-- 详情 + 时间线 -->
+          <header class="flex h-11 shrink-0 items-center gap-1.5 border-b border-slate-100 px-2">
+            <button type="button" class="icon-btn !h-7 !w-7" title="返回列表" (click)="backToList()">
+              <app-icon name="arrowLeft" [size]="14" />
+            </button>
+            <span
+              class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-medium text-slate-600"
+            >
+              {{ seqOf(annotation.id) }}
+            </span>
+            <p class="min-w-0 flex-1 truncate text-xs font-medium text-slate-900" [attr.title]="annotation.title">
+              {{ annotation.title }}
+            </p>
+            <span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium" [class]="statusChip(annotation.status)">
+              {{ statusLabel(annotation.status) }}
+            </span>
+          </header>
+
+          <div class="shrink-0 border-b border-slate-100 px-3 py-2.5">
+            <p class="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
+              <span class="h-1.5 w-1.5 rounded-full" [class]="severityBar(annotation.severity)"></span>
+              {{ severityLabel(annotation.severity) }} · {{ disciplineLabel(annotation.discipline) }}
+              · {{ annotation.assignee?.name || '未指派' }}
+              · {{ relative(annotation.updated_at) }}
+              @if (annotation.due_date) {
+                · <span [class.text-danger]="overdue(annotation)">截止 {{ annotation.due_date }}</span>
+              }
+            </p>
+
+            @if (annotation.content) {
+              <p class="mt-1.5 whitespace-pre-wrap text-[11px] leading-5 text-slate-600">{{ annotation.content }}</p>
+            }
+
+            <div class="mt-1.5 flex flex-wrap items-center gap-1">
+              @if (annotation.source === 'AI') {
+                <span class="rounded bg-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-primary">AI 采纳</span>
+              }
+              @if (annotation.is_stale_version) {
+                <span
+                  class="rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-medium text-warning"
+                  [attr.title]="'该批注创建于 v' + annotation.drawing_version + '，位置可能已偏移'"
+                >
+                  基于 v{{ annotation.drawing_version }}
+                </span>
+              }
+              @if (overdue(annotation)) {
+                <span class="rounded bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger">逾期</span>
+              }
+              @if (!annotation.location_valid) {
+                <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">位置失效</span>
+              }
+            </div>
+
+            @if (actionsOf(annotation).length > 0) {
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                @for (action of actionsOf(annotation); track action) {
+                  <button
+                    type="button"
+                    [class]="actionClass(action)"
+                    (click)="openTransition(annotation, action, $event)"
+                  >
+                    {{ actionLabelOf(action) }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+
+          <app-annotation-timeline
+            [items]="timeline()"
+            [loading]="timelineLoading()"
+            [closed]="annotation.status === 'CLOSED'"
+            [busy]="commentBusy()"
+            [loadError]="timelineError()"
+            [submitError]="commentError()"
+            (submitted)="submitComment($event)"
+          />
+        } @else {
+          <!-- 列表 -->
+          <div class="flex h-10 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-slate-100 px-1.5">
+            @for (item of tabs; track item.key) {
+              <button
+                type="button"
+                class="shrink-0 rounded-md px-2 py-1 text-[11px] font-medium transition-colors"
+                [class]="tab() === item.key ? 'bg-primary-soft text-primary' : 'text-slate-500 hover:bg-slate-100'"
+                (click)="onTab(item.key)"
+              >
+                {{ item.label }}
+                <span class="tabular-nums opacity-70">{{ tabCounts()[item.key] }}</span>
+              </button>
+            }
+          </div>
+
+          <div class="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-100 px-2 py-1.5">
+            <app-multi-select
+              placeholder="严重度"
+              [options]="severityOptions"
+              [selected]="severityFilter()"
+              (selectionChange)="onSeverityFilter($event)"
+            />
+            <app-multi-select
+              placeholder="专业"
+              [options]="disciplineOptions"
+              [selected]="disciplineFilter()"
+              (selectionChange)="onDisciplineFilter($event)"
+            />
+            <select
+              class="h-9 max-w-[92px] rounded-lg border border-slate-200 bg-white px-1.5 text-[11px] text-slate-600 outline-none focus:border-primary"
+              [value]="assigneeFilter()"
+              (change)="onAssigneeFilter($event)"
+              aria-label="按指派人筛选"
+            >
+              <option value="">全部指派</option>
+              @for (member of members(); track member.user.id) {
+                <option [value]="member.user.id">{{ member.user.name }}</option>
+              }
+            </select>
+            <label class="ml-auto flex cursor-pointer items-center gap-1 text-[10px] text-slate-500">
+              <input
+                type="checkbox"
+                class="checkbox !h-3.5 !w-3.5"
+                [checked]="showClosed()"
+                (change)="showClosed.set(!showClosed())"
+              />
+              显示已关闭
+            </label>
+          </div>
+
+          <!-- 新建批注表单：内联展开，不遮挡画布 -->
+          @if (createDraft(); as draft) {
+            <app-annotation-create-form
+              [shapeType]="draft.shapeType"
+              [locationText]="draft.summary"
+              [initialTitle]="createTitle()"
+              [members]="members()"
+              [defaultAssigneeId]="myId()"
+              [defaultDiscipline]="myDiscipline()"
+              [busy]="createBusy()"
+              [submitError]="createError()"
+              (submitted)="submitCreate($event)"
+              (cancelled)="cancelCreate()"
+            />
+          }
+
+          <div class="min-h-0 flex-1 overflow-y-auto">
+            @if (listError()) {
+              <div class="flex h-full flex-col items-center justify-center gap-2 text-center">
+                <app-icon name="alert" [size]="18" class="text-slate-300" />
+                <p class="text-xs text-slate-500">批注列表加载失败</p>
+                <button type="button" class="text-action" (click)="retry()">重试</button>
+              </div>
+            } @else if (visible().length === 0) {
+              <div class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                <app-icon name="inbox" [size]="22" class="text-slate-200" />
+                <p class="text-xs text-slate-400">
+                  @if (annotations().length === 0) {
+                    {{ isPdf() ? '还没有批注。选中矩形工具（R），在图纸上拉框即可创建。' : '还没有批注。DXF 在线批注暂未开放，可先下载图纸查看。' }}
+                  } @else {
+                    当前筛选条件下没有批注，试试放宽筛选。
+                  }
+                </p>
+              </div>
+            } @else {
+              @for (annotation of visible(); track annotation.id) {
+                <article
+                  class="group relative cursor-pointer border-b border-slate-50 py-2.5 pl-3 pr-2.5 transition-colors hover:bg-slate-50/70"
+                  [class.bg-primary-soft]="selectedId() === annotation.id || highlightId() === annotation.id"
+                  [attr.title]="annotation.content || annotation.title"
+                  (click)="selectAnnotation(annotation)"
+                >
+                  <span class="absolute inset-y-0 left-0 w-1" [class]="severityBar(annotation.severity)"></span>
+                  <div class="flex items-start gap-2">
+                    <span
+                      class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-medium text-slate-600"
+                    >
+                      {{ seqOf(annotation.id) }}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-xs font-medium text-slate-900">{{ annotation.title }}</p>
+                      <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-slate-400">
+                        <span class="font-medium" [class]="statusText(annotation.status)">
+                          {{ statusLabel(annotation.status) }}
+                        </span>
+                        <span>· {{ annotation.assignee?.name || '未指派' }}</span>
+                        <span [attr.title]="absolute(annotation.updated_at)">· {{ relative(annotation.updated_at) }}</span>
+                        @if (annotation.source === 'AI') {
+                          <span class="rounded bg-primary-soft px-1 font-medium text-primary">AI</span>
+                        }
+                        @if (annotation.is_stale_version) {
+                          <span
+                            class="rounded bg-warning-soft px-1 font-medium text-warning"
+                            [attr.title]="'该批注创建于 v' + annotation.drawing_version + '，位置可能已偏移'"
+                          >
+                            基于 v{{ annotation.drawing_version }}
+                          </span>
+                        }
+                        @if (overdue(annotation)) {
+                          <span class="rounded bg-danger-soft px-1 font-medium text-danger">逾期</span>
+                        }
+                        @if (!annotation.location_valid) {
+                          <span class="rounded bg-slate-100 px-1 font-medium text-slate-500">位置失效</span>
+                        }
+                      </p>
+
+                      @if (actionsOf(annotation).length > 0) {
+                        <div class="mt-1.5 flex flex-wrap gap-1">
+                          @for (action of actionsOf(annotation); track action) {
+                            <button
+                              type="button"
+                              [class]="actionClass(action)"
+                              (click)="openTransition(annotation, action, $event)"
+                            >
+                              {{ actionLabelOf(action) }}
+                            </button>
+                          }
+                        </div>
+                      }
+                    </div>
+                  </div>
+                </article>
+              }
+            }
+          </div>
+
+          <div class="flex h-8 shrink-0 items-center gap-2 border-t border-slate-100 px-3 text-[10px] text-slate-400">
+            <span>{{ isPdf() ? 'R 矩形 · P 点 · T 文字 · Ctrl+Z 撤销' : 'DXF · 仅批注列表' }}</span>
+            <span class="ml-auto">{{ visible().length }}/{{ annotations().length }}</span>
+          </div>
+        }
+      </aside>
+    </div>
+  }
+</div>
+
+@if (transitionAction(); as action) {
+  @if (transitionTarget(); as target) {
+    <app-annotation-transition
+      [action]="action"
+      [annotation]="target"
+      [members]="members()"
+      [drawingId]="did()"
+      [newerVersion]="newerVersion()"
+      [busy]="transitionBusy()"
+      [submitError]="transitionError()"
+      (submitted)="submitTransition($event)"
+      (dismissed)="closeTransition()"
+    />
+  }
+}
+
+@if (deleteConfirm(); as target) {
+  <app-confirm-dialog
+    title="作废批注"
+    [message]="'作废后「' + target.title + '」将不再出现在批注面板，操作不可撤销。'"
+    confirmLabel="确认作废"
+    tone="danger"
+    [busy]="transitionBusy()"
+    (confirmed)="confirmDelete()"
+    (dismissed)="deleteConfirm.set(null)"
+  />
+}

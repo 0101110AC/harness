@@ -1,0 +1,278 @@
+<div class="space-y-5">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="text-[11px] font-medium uppercase tracking-wider text-slate-400">协同</p>
+      <h1 class="mt-1.5 page-title">批注协同</h1>
+      <p class="mt-1.5 text-sm text-slate-500">
+        @if (loading()) {
+          正在加载批注…
+        } @else {
+          共 {{ total() }} 条批注 · 点击定位回到图纸，自动选中并高亮
+        }
+      </p>
+    </div>
+    <button type="button" class="btn-secondary shrink-0" (click)="openProjects()">
+      <app-icon name="project" [size]="16" />
+      去图纸上标注
+    </button>
+  </header>
+
+  <!-- Tab：全部 / 指派给我 -->
+  <div class="flex items-center gap-1 border-b border-slate-200">
+    <button
+      type="button"
+      class="relative px-3 py-2.5 text-sm font-medium transition-colors"
+      [class.text-slate-900]="tab() === 'all'"
+      [class.text-slate-500]="tab() !== 'all'"
+      (click)="setTab('all')"
+    >
+      全部批注
+      @if (tab() === 'all') {
+        <span class="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary"></span>
+      }
+    </button>
+    <button
+      type="button"
+      class="relative px-3 py-2.5 text-sm font-medium transition-colors"
+      [class.text-slate-900]="tab() === 'mine'"
+      [class.text-slate-500]="tab() !== 'mine'"
+      (click)="setTab('mine')"
+    >
+      <span class="inline-flex items-center gap-1.5">
+        指派给我
+        @if (tab() === 'mine') {
+          <span class="rounded-full bg-primary-soft px-1.5 text-[10px] text-primary">
+            {{ myName() }}
+          </span>
+        }
+      </span>
+      @if (tab() === 'mine') {
+        <span class="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary"></span>
+      }
+    </button>
+  </div>
+
+  <!-- 筛选：严重度 + 状态 -->
+  <div class="card flex flex-wrap items-center gap-2 px-3 py-2.5">
+    <label class="flex items-center gap-2 text-xs text-slate-500">
+      严重度
+      <select
+        class="field-input w-auto !py-2 text-xs"
+        [value]="severity()"
+        (change)="onSeverityChange($event)"
+      >
+        <option value="">全部</option>
+        @for (option of severityOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </label>
+
+    <label class="flex items-center gap-2 text-xs text-slate-500">
+      状态
+      <select
+        class="field-input w-auto !py-2 text-xs"
+        [value]="status()"
+        (change)="onStatusChange($event)"
+      >
+        <option value="">全部</option>
+        @for (option of statusOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </label>
+
+    @if (hasFilter()) {
+      <button type="button" class="text-action" (click)="clearFilters()">
+        <app-icon name="close" [size]="12" class="mr-1 inline" />
+        清除筛选
+      </button>
+    }
+  </div>
+
+  @if (loading()) {
+    <div class="card overflow-hidden">
+      @for (placeholder of [0, 1, 2, 3, 4, 5]; track placeholder) {
+        <div class="flex items-center gap-4 border-b border-slate-100 px-5 py-4 last:border-0">
+          <div class="h-4 w-10 shrink-0 animate-pulse rounded bg-slate-100"></div>
+          <div class="h-3.5 flex-1 animate-pulse rounded bg-slate-100"></div>
+          <div class="h-3.5 w-16 animate-pulse rounded bg-slate-100"></div>
+          <div class="ml-auto h-3.5 w-24 animate-pulse rounded bg-slate-100"></div>
+        </div>
+      }
+    </div>
+  } @else if (loadError()) {
+    <section class="card flex flex-col items-center gap-3 px-6 py-16 text-center">
+      <span class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 text-slate-300">
+        <app-icon name="alert" [size]="20" />
+      </span>
+      <p class="text-sm font-medium text-slate-700">批注列表加载失败</p>
+      <p class="max-w-sm text-sm text-slate-400">可能是网络波动或服务暂不可用。</p>
+      <button type="button" class="btn-secondary mt-1" (click)="load()">
+        <app-icon name="refresh" [size]="15" />
+        重试
+      </button>
+    </section>
+  } @else if (items().length === 0) {
+    <!-- 空态：插画 + 明确下一步，而不是一句"暂无数据" -->
+    <section class="card flex flex-col items-center gap-5 px-6 py-20 text-center">
+      <div class="relative">
+        <div class="flex h-24 w-24 items-center justify-center rounded-3xl bg-slate-50">
+          <app-icon name="annotation" [size]="36" class="text-slate-300" />
+        </div>
+        <span
+          class="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary-soft text-primary"
+        >
+          <app-icon name="plus" [size]="14" />
+        </span>
+        <span class="absolute -bottom-1.5 left-2 h-2 w-2 rounded-full bg-primary/20"></span>
+        <span class="absolute -left-3 top-6 h-1.5 w-1.5 rounded-full bg-primary/10"></span>
+      </div>
+      @if (hasFilter()) {
+        <div>
+          <p class="text-sm font-medium text-slate-700">没有符合筛选条件的批注</p>
+          <p class="mt-1 text-sm text-slate-400">换个严重度或状态，或清除筛选查看全部。</p>
+        </div>
+        <button type="button" class="btn-secondary" (click)="clearFilters()">清除筛选</button>
+      } @else if (tab() === 'mine') {
+        <div>
+          <p class="text-sm font-medium text-slate-700">暂时没有指派给你的批注</p>
+          <p class="mt-1 text-sm text-slate-400">审图人下发批注后会出现在这里，并同步发站内信。</p>
+        </div>
+        <button type="button" class="btn-secondary" (click)="setTab('all')">查看全部批注</button>
+      } @else {
+        <div>
+          <p class="text-sm font-medium text-slate-700">暂无批注，去图纸上标注吧</p>
+          <p class="mt-1 text-sm text-slate-400">
+            进入图纸画布，用矩形 / 点 / 文字工具即可创建第一条批注。
+          </p>
+        </div>
+        <button type="button" class="btn-primary" (click)="openProjects()">
+          <app-icon name="project" [size]="16" />
+          去项目里标注
+        </button>
+      }
+    </section>
+  } @else {
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[960px] text-sm">
+          <thead class="border-b border-slate-100 text-left text-xs font-medium text-slate-400">
+            <tr>
+              <th class="w-[80px] px-5 py-3 font-medium">严重度</th>
+              <th class="px-3 py-3 font-medium">批注</th>
+              <th class="w-[110px] px-3 py-3 font-medium">状态</th>
+              <th class="w-[130px] px-3 py-3 font-medium">责任人</th>
+              <th class="w-[110px] px-3 py-3 font-medium">截止</th>
+              <th class="w-[110px] px-3 py-3 font-medium">更新</th>
+              <th class="w-[104px] px-5 py-3 text-right font-medium">操作</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            @for (annotation of items(); track annotation.id) {
+              <tr
+                class="cursor-pointer transition-colors hover:bg-slate-50/70"
+                tabindex="0"
+                [attr.aria-label]="'定位批注 ' + annotation.title"
+                (click)="open(annotation)"
+                (keydown.enter)="open(annotation)"
+              >
+                <td class="px-5 py-3.5">
+                  <span class="inline-flex items-center gap-1.5 text-xs font-medium">
+                    <span
+                      class="h-1.5 w-1.5 rounded-full"
+                      [class]="severityMeta(annotation.severity).dot"
+                    ></span>
+                    <span [class]="severityMeta(annotation.severity).text">
+                      {{ severityMeta(annotation.severity).label }}
+                    </span>
+                  </span>
+                </td>
+                <td class="max-w-[420px] px-3 py-3.5">
+                  <p
+                    class="truncate font-medium text-slate-900 hover:text-primary"
+                    (click)="open(annotation, $event)"
+                  >
+                    {{ annotation.title }}
+                  </p>
+                  <p class="mt-0.5 truncate text-[11px] text-slate-400">
+                    {{ annotation.project_name ?? '未知项目' }}
+                    <span class="text-slate-300">·</span>
+                    {{ annotation.drawing_name ?? '未知图纸' }}
+                    <span class="text-slate-300">·</span>
+                    第 {{ annotation.location.page_no }} 页
+                  </p>
+                </td>
+                <td class="px-3 py-3.5">
+                  <span
+                    class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    [class]="statusChip(annotation.status)"
+                  >
+                    {{ statusLabel(annotation.status) }}
+                  </span>
+                </td>
+                <td class="px-3 py-3.5">
+                  @if (annotation.assignee; as assignee) {
+                    <span class="text-[13px] text-slate-600">{{ assignee.name }}</span>
+                  } @else {
+                    <span class="text-[13px] text-slate-400">未指派</span>
+                  }
+                  @if (annotation.assignee_missing) {
+                    <span
+                      class="ml-1 rounded bg-warning-soft px-1.5 py-0.5 text-[10px] text-warning"
+                      title="原责任人已离开项目，请重新指派"
+                      >责任人已离项</span
+                    >
+                  }
+                </td>
+                <td class="px-3 py-3.5 text-[11px] text-slate-500">{{ dueText(annotation) }}</td>
+                <td
+                  class="px-3 py-3.5 text-[11px] text-slate-400"
+                  [attr.title]="absolute(annotation.updated_at)"
+                >
+                  {{ relative(annotation.updated_at) }}
+                </td>
+                <td class="px-5 py-3.5 text-right">
+                  <button
+                    type="button"
+                    class="text-action whitespace-nowrap"
+                    title="跳到图纸并高亮这条批注"
+                    (click)="open(annotation, $event)"
+                  >
+                    <app-icon name="locate" [size]="12" class="mr-1 inline" />
+                    定位
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <footer
+        class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-3 text-xs text-slate-400"
+      >
+        <span>第 {{ rangeStart() }}–{{ rangeEnd() }} 条 / 共 {{ total() }} 条</span>
+        <div class="flex items-center gap-1.5">
+          <button
+            type="button"
+            class="btn-secondary !px-2.5 !py-1.5 text-xs"
+            [disabled]="page() <= 1"
+            (click)="prevPage()"
+          >
+            上一页
+          </button>
+          <span class="px-1 text-slate-500">{{ page() }} / {{ pages() }}</span>
+          <button
+            type="button"
+            class="btn-secondary !px-2.5 !py-1.5 text-xs"
+            [disabled]="page() >= pages()"
+            (click)="nextPage()"
+          >
+            下一页
+          </button>
+        </div>
+      </footer>
+    </div>
+  }
+</div>

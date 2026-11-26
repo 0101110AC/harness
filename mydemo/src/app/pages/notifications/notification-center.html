@@ -1,0 +1,162 @@
+<div class="flex min-h-[640px] flex-col gap-3" style="height: calc(100vh - 104px)">
+  <header class="card flex shrink-0 flex-wrap items-center gap-3 px-4 py-3">
+    <div class="min-w-0">
+      <h1 class="page-title">消息中心</h1>
+      <p class="mt-1 text-xs text-slate-500">
+        未读 {{ unread() ?? '—' }} 条 · 共 {{ total() }} 条
+        @if (degraded()) {
+          <span class="ml-1 text-warning">（未读数刷新已暂停，打开铃铛可重试）</span>
+        }
+      </p>
+    </div>
+
+    <span class="flex-1"></span>
+
+    <button
+      type="button"
+      class="btn-secondary !px-3 !py-1.5 text-xs"
+      [disabled]="(unread() ?? 0) <= 0 || busy()"
+      (click)="confirmReadAllOpen()"
+    >
+      <app-icon name="checkAll" [size]="13" />
+      全部已读
+    </button>
+  </header>
+
+  <div class="card flex min-h-0 flex-1 flex-col overflow-hidden">
+    <!-- Tab：全部 / 未读 / 系统 -->
+    <div class="flex h-11 shrink-0 items-center gap-1 border-b border-slate-100 px-3">
+      @for (item of tabs; track item.key) {
+        <button
+          type="button"
+          class="relative rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+          [class]="tab() === item.key ? 'bg-primary-soft text-primary' : 'text-slate-500 hover:bg-slate-100'"
+          (click)="setTab(item.key)"
+        >
+          {{ item.label }}
+          @if (item.key === 'unread' && unreadTabCount() > 0) {
+            <span class="ml-1 rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
+              {{ unreadTabCount() > 99 ? '99+' : unreadTabCount() }}
+            </span>
+          }
+        </button>
+      }
+    </div>
+
+    <!-- 列头 -->
+    <div
+      class="flex h-9 shrink-0 items-center gap-3 border-b border-slate-100 bg-slate-50/60 px-3 text-[11px] font-medium text-slate-400"
+    >
+      <span class="w-2 shrink-0"></span>
+      <span class="w-10 shrink-0">类型</span>
+      <span class="min-w-0 flex-1">标题</span>
+      <span class="hidden w-[100px] shrink-0 md:block">分类</span>
+      <span class="hidden w-[140px] shrink-0 md:block">时间</span>
+      <span class="w-[80px] shrink-0 text-right">操作</span>
+    </div>
+
+    <div #scrollRoot class="min-h-0 flex-1 overflow-y-auto">
+      @if (loading()) {
+        @for (placeholder of [0, 1, 2, 3, 4]; track placeholder) {
+          <div class="flex items-center gap-3 border-b border-slate-50 px-3 py-3">
+            <div class="h-8 w-8 shrink-0 animate-pulse rounded-full bg-slate-100"></div>
+            <div class="flex-1 space-y-1.5">
+              <div class="h-3 w-1/3 animate-pulse rounded bg-slate-100"></div>
+              <div class="h-2.5 w-2/3 animate-pulse rounded bg-slate-100"></div>
+            </div>
+          </div>
+        }
+      } @else if (loadError()) {
+        <div class="flex h-full flex-col items-center justify-center gap-2 text-center">
+          <app-icon name="alert" [size]="20" class="text-slate-300" />
+          <p class="text-xs text-slate-500">消息加载失败</p>
+          <button type="button" class="btn-secondary !px-3 !py-1.5 text-xs" (click)="reload()">重试</button>
+        </div>
+      } @else if (items().length === 0) {
+        <div class="flex h-full flex-col items-center justify-center gap-3 text-center">
+          <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-300">
+            <app-icon name="inbox" [size]="26" />
+          </span>
+          <p class="text-xs text-slate-400">{{ emptyText() }}</p>
+        </div>
+      } @else {
+        @for (item of items(); track item.id) {
+          <div
+            class="flex cursor-pointer items-center gap-3 border-b border-slate-50 px-3 py-2.5 transition-colors hover:bg-slate-50/70"
+            [class.bg-primary-soft/40]="!item.is_read"
+            (click)="openItem(item)"
+          >
+            <!-- 未读标记：左侧蓝条 8px -->
+            <span class="h-8 w-2 shrink-0 rounded-sm" [class]="item.is_read ? 'bg-transparent' : 'bg-primary'"></span>
+
+            <span
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+              [class]="metaOf(item).tone"
+            >
+              <app-icon [name]="metaOf(item).icon" [size]="15" />
+            </span>
+
+            <div class="min-w-0 flex-1">
+              <p
+                class="truncate text-[13px]"
+                [class.font-semibold]="!item.is_read"
+                [class.text-slate-900]="!item.is_read"
+                [class.text-slate-600]="item.is_read"
+              >
+                {{ item.title }}
+              </p>
+              <p class="mt-0.5 truncate text-[11px] text-slate-400">{{ item.content }}</p>
+            </div>
+
+            <span class="hidden w-[100px] shrink-0 text-[11px] text-slate-500 md:block">
+              {{ metaOf(item).label }}
+            </span>
+
+            <span
+              class="hidden w-[140px] shrink-0 text-[11px] text-slate-400 md:block"
+              [attr.title]="absolute(item.created_at)"
+            >
+              {{ relative(item.created_at) }}
+            </span>
+
+            <span class="w-[80px] shrink-0 text-right">
+              @if (!item.is_read) {
+                <button
+                  type="button"
+                  class="text-action"
+                  (click)="readOne(item, $event)"
+                >
+                  标记已读
+                </button>
+              }
+            </span>
+          </div>
+        }
+
+        <!-- 加载更多 / 到底 -->
+        <div #sentinel class="flex h-12 items-center justify-center text-[11px] text-slate-400">
+          @if (loadingMore()) {
+            <app-icon name="loader" [size]="14" class="mr-1.5 animate-spin" />
+            正在加载…
+          } @else if (hasMore()) {
+            <button type="button" class="text-action" (click)="loadMore()">加载更多</button>
+          } @else {
+            没有更多了
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+@if (confirmReadAll()) {
+  <app-confirm-dialog
+    title="全部已读"
+    [message]="'将 ' + (unread() ?? 0) + ' 条未读消息标记为已读？未读角标会清零。'"
+    confirmLabel="标记已读"
+    tone="primary"
+    [busy]="busy()"
+    (confirmed)="readAll()"
+    (dismissed)="confirmReadAll.set(false)"
+  />
+}

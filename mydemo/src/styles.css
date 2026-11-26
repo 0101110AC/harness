@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-[15px] leading-normal text-slate-900 antialiased;
+  }
+
+  ::selection {
+    @apply bg-primary/15 text-slate-900;
+  }
+
+  /* 极简滚动条：细、低对比，不抢视觉 */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-300;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-card bg-white shadow-card;
+  }
+
+  .page-title {
+    @apply text-xl font-semibold tracking-tight text-slate-900;
+  }
+
+  .divider {
+    @apply h-px w-full bg-slate-100;
+  }
+
+  /* 表单 */
+  .field-label {
+    @apply mb-2 block text-sm font-medium text-slate-700;
+  }
+
+  .field-input {
+    @apply block w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900
+      outline-none transition-colors duration-150 placeholder:text-slate-400
+      hover:border-slate-300 focus:border-primary focus:ring-4 focus:ring-primary/10;
+  }
+
+  .field-input-invalid {
+    @apply border-danger/50 hover:border-danger/60 focus:border-danger focus:ring-danger/10;
+  }
+
+  .field-error {
+    @apply mt-2 text-xs text-danger;
+  }
+
+  .checkbox {
+    @apply h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 accent-primary;
+  }
+
+  /* 按钮 */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm
+      font-medium text-white transition-colors duration-150
+      hover:bg-primary-hover active:bg-primary-active
+      disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white
+      px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors duration-150
+      hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2.5 text-sm
+      font-medium text-white transition-colors duration-150
+      hover:bg-danger-hover disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-transparent px-4 py-2.5 text-sm
+      font-medium text-slate-600 transition-colors duration-150
+      hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500
+      transition-colors duration-150 hover:bg-slate-100 hover:text-slate-900;
+  }
+
+  /* 表格行内的文字按钮：4 个操作并列时比图标按钮更省空间 */
+  .text-action {
+    @apply rounded-md px-2 py-1 text-xs font-medium text-slate-500 transition-colors
+      hover:bg-slate-100 hover:text-slate-900
+      disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent;
+  }
+
+  /* 侧边栏导航 */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600
+      transition-colors duration-150 hover:bg-slate-100 hover:text-slate-900;
+  }
+
+  .nav-item-active {
+    @apply bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary;
+  }
+
+  /* 预审画布占位网格：真实渲染（PDF.js / Canvas）接入后只替换背景层 */
+  .canvas-grid {
+    background-image:
+      linear-gradient(to right, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.12) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}
