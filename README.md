@@ -19,8 +19,14 @@
 
 ---
 
-<!-- 演示视频 -->
-<video src="演示视频.mp4" controls="controls" muted="muted" style="max-width: 100%; border-radius: 8px;"></video>
+<!-- 演示视频：GitHub 会过滤 <video> 标签，这里用封面图链接到视频文件 -->
+<div align="center">
+
+<a href="演示视频.mp4"><img src="docs/assets/demo-poster.jpg" alt="Arch-Harness 演示视频 · 预审中心"></a>
+
+**▶ [观看 90 秒演示视频](演示视频.mp4)**
+
+</div>
 
 > 🎬 **核心演示链路**：发起预审 → 思考链路流式追加 → 风险中断暂停 → 人工确认 → 原地续跑。
 
@@ -210,6 +216,9 @@ npm start
 | :--- | :--- | :--- |
 | D1 | [从零搭建 AI 预审平台地基：11 个鉴权与 ORM 的连环坑，我一个个踩给你看](https://blog.csdn.net/Confusd_pai/article/details/171313774?spm=1011.2415.3001.5331) | 供应链安全、`viewonly` 静默失败、循环外键、静默续期单飞 |
 | D2 | [5 个并发打进来，3 个返回 200，库里只剩最后一条](https://blog.csdn.net/Confusd_pai/article/details/171372240?spm=1011.2415.3001.5331) | 乐观锁 ABA 窗口、物化计数丢更新、异步 ORM 的 N+1、403 读写分流 |
+| D3 | [12 个分片都在飞，服务端只收到 1 个](https://blog.csdn.net/Confusd_pai/article/details/171416275?spm=1011.2415.3001.5331) | 分片上传三层竞态、原子合并、`Content-Type` 与文件头的信任边界 |
+| D4 | [弹窗刚关掉，它又自己弹了出来](https://blog.csdn.net/Confusd_pai/article/details/171420080?spm=1011.2415.3001.5331) | 状态机重放、`Last-Event-ID` 续传、`interrupt()` 跨进程恢复 |
+| D5 | [从已下发，改到已下发](https://blog.csdn.net/Confusd_pai/article/details/171433808?spm=1011.2415.3001.5331) | Outbox 站内信、审计日志被静默篡改、条件更新与秒级时间戳 |
 
 每篇都是"现象 → 排查与解决 → 原理与沉淀"的结构，代码可以直接抄。
 
